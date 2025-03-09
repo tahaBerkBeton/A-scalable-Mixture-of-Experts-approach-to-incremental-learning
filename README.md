@@ -144,6 +144,12 @@ Our incremental learning system demonstrates excellent performance across all ta
 | 4    | 0-35    | 88.33%   |
 | 5    | 0-42    | 88.83%   |
 
+<p align="center">
+  <img src="accuracy.png" alt="Accuracy Evolution" width="700"/>
+  <br>
+  <em>Evolution of model accuracy across incremental learning tasks</em>
+</p>
+
 These results show that our approach effectively mitigates catastrophic forgetting, maintaining high accuracy even as new tasks are added. While there is a modest performance decrease after task 3, the system still maintains nearly 89% accuracy after learning all 43 classes across 5 tasks.
 
 ### Error Analysis
@@ -286,6 +292,13 @@ Several directions for future research and improvement are being considered:
 
 2. **Knowledge Distillation**: Incorporating distillation techniques could help transfer knowledge between experts and potentially reduce the need for a large memory buffer.
 
+3. **Scaling to Larger Datasets**: Applying the approach to larger, more complex datasets such as ImageNet would test its scalability to real-world applications with thousands of classes.
+
+4. **Dynamic Expert Allocation**: Investigating methods to dynamically allocate classes to experts based on similarity rather than sequential task assignment could improve overall performance.
+
+5. **Adaptive Hyperparameters**: Developing approaches to automatically adjust hyperparameters like buffer size and loss weights based on task characteristics could optimize performance across different domains.
+
+6. **Ensemble Methods**: Combining multiple trained models or experts to form ensemble predictions could further improve classification accuracy and robustness.
 
 ## 📚 References
 
