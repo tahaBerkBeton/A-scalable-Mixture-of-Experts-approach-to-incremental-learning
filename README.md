@@ -119,7 +119,7 @@ The GTSRB dataset is divided into 4 sequential tasks, with each introducing new 
    - Apply multi-component loss function:
      - Classification loss on new task data
      - Classification loss on memory buffer (weighted by 2.0)
-     - Routing alignment loss (weighted by 0.1)
+     - Routing alignment loss (weighted by 2)
    - Save best model checkpoint based on validation accuracy
 
 ### Memory Buffer Strategy
@@ -191,13 +191,11 @@ incremental-learning/
 ## 🛠️ Requirements
 
 ```
-torch>=1.10.0
-torchvision>=0.11.0
-numpy>=1.19.5
-pandas>=1.3.0
-matplotlib>=3.4.0
-pillow>=8.2.0
-tqdm>=4.60.0
+torch
+torchvision
+numpy
+pandas
+tqdm
 ```
 
 ## 🚀 How to Run
@@ -205,8 +203,8 @@ tqdm>=4.60.0
 ### Setup
 ```bash
 # Clone repository
-git clone https://github.com/username/incremental-learning-moe.git
-cd incremental-learning-moe
+git clone https://github.com/tahaBerkBeton/A-scalable-Mixture-of-Experts-approach-to-incremental-learning.git
+cd A-scalable-Mixture-of-Experts-approach-to-incremental-learning
 
 # Install dependencies
 pip install -r requirements.txt
@@ -237,7 +235,7 @@ Key hyperparameters:
 - Learning rate: 0.001 (constant)
 - Batch size: 64
 - Memory buffer size: 1000 samples
-- Alignment strength: 0.1
+- Alignment strength: 2.0
 - Buffer weight: 2.0
 
 ### Loss Function Components and Justification
@@ -261,7 +259,7 @@ total_loss = (classification_loss_new +
    - **Weight = 2.0**: This higher weight is chosen to retain previously learned knowledge by penalising forgetting past instances
 
 
-3. **Routing Alignment Loss** (`routing_loss_new + routing_loss_buf` with weight 0.1)
+3. **Routing Alignment Loss** (`routing_loss_new + routing_loss_buf` with weight 2.0)
    - Cross-entropy loss that trains the router to correctly select the appropriate expert for each sample
    - **Weight = 2**: This higher weight ensures routing learning occurs without forgetting previous routing instances
    - This component is crucial for the MoE architecture as it ensures:
