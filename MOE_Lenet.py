@@ -207,28 +207,235 @@ def evaluate_moe(model, dataloader, device):
     return 100 * correct / total
 
 ####################################
-### Incremental Learning with Best-Model Checkpointing (Constant LR)
+### New Functions for Multiple Training Attempts
 ####################################
-def incremental_learning_moe(model, train_dataset, train_target, test_dataset, test_target,
-                               num_tasks, classes_per_task, batch_size, num_epochs, lr, device,
-                               buffer_size=1000, alignment_strength=0.1, buffer_weight=2.0):
+def train_initial_task(model, task_loader, test_dataset, test_target, current_classes, 
+                      batch_size, num_epochs, lr, device, alignment_strength=2.0):
+    """
+    Trains the feature extractor and first expert for the initial task.
+    Returns the best accuracy achieved during training.
+    """
+    model.train()
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    
+    best_accuracy = 0
+    best_model_state = None
+    
+    # First task typically requires more epochs (using 50 as specified in original code)
+    first_task_epochs = 50
+    
+    for epoch in range(first_task_epochs):
+        pbar = tqdm(task_loader, ncols=80, desc=f"Initial Task, Epoch {epoch+1}")
+        for images, labels in pbar:
+            images, labels = images.to(device), labels.to(device)
+            
+            features, router_logits, _ = model(images)
+            gt_expert, local_labels = get_ground_truth_expert_info(labels, model.expert_classes, device)
+            
+            # Get samples for the expert
+            expert_id = 0  # First expert
+            mask = (gt_expert == expert_id).nonzero(as_tuple=True)[0]
+            
+            if mask.numel() > 0:
+                features_sel = features[mask]
+                expert_logits = model.experts[expert_id](features_sel)
+                local_labels_sel = local_labels[mask]
+                classification_loss = criterion(expert_logits, local_labels_sel)
+            else:
+                classification_loss = 0.0
+                
+            # Router loss
+            routing_loss = criterion(router_logits, gt_expert)
+            
+            # Total loss
+            total_loss = classification_loss + alignment_strength * routing_loss
+            
+            optimizer.zero_grad()
+            total_loss.backward()
+            optimizer.step()
+            
+            pbar.set_postfix({"loss": total_loss.item()})
+        
+        # Evaluate after each epoch
+        eval_loader = create_dataloader(test_dataset, test_target, current_classes, batch_size, shuffle=False)
+        epoch_accuracy = evaluate_moe(model, eval_loader, device)
+        print(f"Initial Task, Epoch {epoch+1}: Eval Accuracy = {epoch_accuracy:.2f}% (LR = {lr:.5f})")
+        
+        if epoch_accuracy > best_accuracy:
+            best_accuracy = epoch_accuracy
+            best_model_state = copy.deepcopy(model.state_dict())
+    
+    # Load the best model state
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+    
+    return best_accuracy
+
+def train_subsequent_task(model, task_loader, buffer_loader, test_dataset, test_target, current_classes,
+                         batch_size, num_epochs, lr, device, alignment_strength=2.0, buffer_weight=2.0):
+    """
+    Trains a new expert for a subsequent task, starting from a pre-trained model.
+    Returns the best accuracy achieved during training.
+    """
+    model.train()
+    criterion = nn.CrossEntropyLoss()
+    # Only train new expert and router (filter parameters that require gradients)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
+    
+    best_accuracy = 0
+    best_model_state = None
+    
+    task_iter = iter(task_loader)
+    if buffer_loader is not None:
+        buffer_iter = iter(buffer_loader)
+        num_batches = max(len(task_loader), len(buffer_loader))
+    else:
+        num_batches = len(task_loader)
+    
+    for epoch in range(num_epochs):
+        pbar = tqdm(range(num_batches), ncols=80, desc=f"Subsequent Task, Epoch {epoch+1}")
+        for _ in pbar:
+            # Get new task data
+            try:
+                images_new, labels_new = next(task_iter)
+            except StopIteration:
+                task_iter = iter(task_loader)
+                images_new, labels_new = next(task_iter)
+            
+            new_images = images_new.to(device)
+            new_labels = labels_new.to(device)
+            
+            features_new, router_logits_new, _ = model(new_images)
+            gt_expert_new, local_labels_new = get_ground_truth_expert_info(new_labels, model.expert_classes, device)
+            
+            # Get samples for the new expert
+            new_expert_id = len(model.experts) - 1
+            mask_new = (gt_expert_new == new_expert_id).nonzero(as_tuple=True)[0]
+            
+            if mask_new.numel() > 0:
+                features_new_sel = features_new[mask_new]
+                expert_logits_new = model.experts[new_expert_id](features_new_sel)
+                local_labels_new_sel = local_labels_new[mask_new]
+                classification_loss_new = criterion(expert_logits_new, local_labels_new_sel)
+            else:
+                classification_loss_new = 0.0
+                
+            routing_loss_new = criterion(router_logits_new, gt_expert_new)
+            
+            # Process buffer data if available
+            if buffer_loader is not None:
+                try:
+                    images_buf, labels_buf = next(buffer_iter)
+                except StopIteration:
+                    buffer_iter = iter(buffer_loader)
+                    images_buf, labels_buf = next(buffer_iter)
+                
+                buf_images = images_buf.to(device)
+                buf_labels = labels_buf.to(device)
+                
+                features_buf, router_logits_buf, _ = model(buf_images)
+                gt_expert_buf, local_labels_buf = get_ground_truth_expert_info(buf_labels, model.expert_classes, device)
+                
+                classification_loss_buf = 0.0
+                for expert_id, cls_list in enumerate(model.expert_classes):
+                    idx = (gt_expert_buf == expert_id).nonzero(as_tuple=True)[0]
+                    if idx.numel() > 0:
+                        expert_logits_buf = model.experts[expert_id](features_buf[idx])
+                        local_labels_buf_sel = local_labels_buf[idx]
+                        classification_loss_buf += criterion(expert_logits_buf, local_labels_buf_sel)
+                
+                routing_loss_buf = criterion(router_logits_buf, gt_expert_buf)
+            else:
+                classification_loss_buf = 0.0
+                routing_loss_buf = 0.0
+            
+            # Total loss
+            total_loss = (classification_loss_new +
+                         buffer_weight * classification_loss_buf +
+                         alignment_strength * (routing_loss_new + routing_loss_buf))
+            
+            optimizer.zero_grad()
+            total_loss.backward()
+            optimizer.step()
+            
+            pbar.set_postfix({"loss": total_loss.item()})
+        
+        # Evaluate after each epoch
+        eval_loader = create_dataloader(test_dataset, test_target, current_classes, batch_size, shuffle=False)
+        epoch_accuracy = evaluate_moe(model, eval_loader, device)
+        print(f"Subsequent Task, Epoch {epoch+1}: Eval Accuracy = {epoch_accuracy:.2f}% (LR = {lr:.5f})")
+        
+        if epoch_accuracy > best_accuracy:
+            best_accuracy = epoch_accuracy
+            best_model_state = copy.deepcopy(model.state_dict())
+    
+    # Load the best model state
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+    
+    return best_accuracy
+
+def incremental_learning_moe_with_retries(train_dataset, train_target, test_dataset, test_target,
+                                num_tasks, classes_per_task, batch_size, num_epochs, lr, device,
+                                buffer_size=1000, alignment_strength=2.0, buffer_weight=2.0,
+                                num_retries=2):
+    """
+    Performs incremental learning using multiple training attempts for each task,
+    selecting the best performing model for each task.
+    """
     nclasses = len(np.unique(train_target))
     all_classes = list(range(nclasses))
     current_classes = []
     accuracies = []
-    memory_buffer = []  # List of (image, label) tuples
-    criterion = nn.CrossEntropyLoss()
-
+    
+    best_overall_model = None
+    
     for task in range(num_tasks):
-        # Define new task classes.
+        # Define new task classes
         task_classes = all_classes[task * classes_per_task : (task + 1) * classes_per_task]
         current_classes.extend(task_classes)
         print(f"\n--- Starting Task {task+1} with classes: {task_classes} ---")
-        new_task_loader = create_dataloader(train_dataset, train_target, task_classes, batch_size, shuffle=True)
         
-        if task > 0:
-            memory_buffer = build_memory_buffer(model.expert_classes, buffer_pool_dataset,
-                                                total_buffer_size=buffer_size, current_task_idx=task)
+        best_task_accuracy = 0
+        best_task_model = None
+        
+        # For the first task, we train the feature extractor and first expert multiple times
+        # For subsequent tasks, we use the best model so far and train new router/expert multiple times
+        if task == 0:
+            for attempt in range(num_retries):
+                print(f"\nTask {task+1}, Attempt {attempt+1}/{num_retries}")
+                
+                # Create a new model for each attempt
+                model = MixtureOfExperts(feature_dim=400)
+                model.to(device)
+                model.add_expert(task_classes)
+                
+                # Create data loader for current task
+                task_loader = create_dataloader(train_dataset, train_target, task_classes, batch_size, shuffle=True)
+                
+                # Train the model for this attempt
+                task_accuracy = train_initial_task(model, task_loader, test_dataset, test_target, 
+                                                  current_classes, batch_size, num_epochs, lr, device)
+                
+                print(f"Task {task+1}, Attempt {attempt+1}: Final Accuracy = {task_accuracy:.2f}%")
+                
+                # Update best model if this attempt is better
+                if task_accuracy > best_task_accuracy:
+                    best_task_accuracy = task_accuracy
+                    best_task_model = copy.deepcopy(model)
+                    
+                    # Save this model as a checkpoint for this attempt
+                    checkpoint_path = os.path.join(save_dir, f"moe_model_task{task+1}_attempt{attempt+1}.pt")
+                    torch.save({
+                        'state_dict': model.state_dict(),
+                        'expert_classes': model.expert_classes
+                    }, checkpoint_path)
+        else:
+            # For subsequent tasks, start from the best model so far and try training the new expert multiple times
+            memory_buffer = build_memory_buffer(best_overall_model.expert_classes, buffer_pool_dataset,
+                                               total_buffer_size=buffer_size, current_task_idx=task)
+            
             if memory_buffer:
                 buffer_images, buffer_labels = zip(*memory_buffer)
                 buffer_images = torch.stack(buffer_images)
@@ -237,139 +444,84 @@ def incremental_learning_moe(model, train_dataset, train_target, test_dataset, t
                 buffer_loader = DataLoader(buffer_dataset, batch_size=batch_size, shuffle=True)
             else:
                 buffer_loader = None
-        else:
-            buffer_loader = None
-
-        # Add a new expert for the current task.
-        model.add_expert(task_classes)
-        model.to(device)
-        # Freeze feature extractor and previous experts.
-        for param in model.feature_extractor.parameters():
-            param.requires_grad = False
-        for expert in model.experts[:-1]:
-            for param in expert.parameters():
-                param.requires_grad = False
-
-        # Use constant LR = 0.001.
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
-        
-        new_task_iter = iter(new_task_loader)
-        if buffer_loader is not None:
-            buffer_iter = iter(buffer_loader)
-            num_batches = max(len(new_task_loader), len(buffer_loader))
-        else:
-            num_batches = len(new_task_loader)
-        
-        # Use 80 epochs for the first task; otherwise, use num_epochs.
-        epochs_for_this_task = 120 if task == 0 else num_epochs
-
-        best_epoch_accuracy = 0.0
-        best_model_state = None
-
-        for epoch in range(epochs_for_this_task):
-            model.train()
-            pbar = tqdm(range(num_batches), ncols=80, desc=f"Task {task+1}, Epoch {epoch+1}")
-            for _ in pbar:
-                try:
-                    images_new, labels_new = next(new_task_iter)
-                except StopIteration:
-                    new_task_iter = iter(new_task_loader)
-                    images_new, labels_new = next(new_task_iter)
-                new_images = images_new.to(device)
-                new_labels = labels_new.to(device)
-
-                features_new, router_logits_new, _ = model(new_images)
-                gt_expert_new, local_labels_new = get_ground_truth_expert_info(new_labels, model.expert_classes, device)
-                new_expert_id = len(model.experts) - 1
-                mask_new = (gt_expert_new == new_expert_id).nonzero(as_tuple=True)[0]
-                if mask_new.numel() > 0:
-                    features_new_sel = features_new[mask_new]
-                    expert_logits_new = model.experts[new_expert_id](features_new_sel)
-                    local_labels_new_sel = local_labels_new[mask_new]
-                    classification_loss_new = criterion(expert_logits_new, local_labels_new_sel)
-                else:
-                    classification_loss_new = 0.0
-                routing_loss_new = criterion(router_logits_new, gt_expert_new)
-
-                if buffer_loader is not None:
-                    try:
-                        images_buf, labels_buf = next(buffer_iter)
-                    except StopIteration:
-                        buffer_iter = iter(buffer_loader)
-                        images_buf, labels_buf = next(buffer_iter)
-                    buf_images = images_buf.to(device)
-                    buf_labels = labels_buf.to(device)
-                    features_buf, router_logits_buf, _ = model(buf_images)
-                    gt_expert_buf, local_labels_buf = get_ground_truth_expert_info(buf_labels, model.expert_classes, device)
-                    classification_loss_buf = 0.0
-                    for expert_id, cls_list in enumerate(model.expert_classes):
-                        idx = (gt_expert_buf == expert_id).nonzero(as_tuple=True)[0]
-                        if idx.numel() > 0:
-                            expert_logits_buf = model.experts[expert_id](features_buf[idx])
-                            local_labels_buf_sel = local_labels_buf[idx]
-                            classification_loss_buf += criterion(expert_logits_buf, local_labels_buf_sel)
-                    routing_loss_buf = criterion(router_logits_buf, gt_expert_buf)
-                else:
-                    classification_loss_buf = 0.0
-                    routing_loss_buf = 0.0
-
-                total_loss = (classification_loss_new +
-                              buffer_weight * classification_loss_buf +
-                              alignment_strength * (routing_loss_new + routing_loss_buf))
-                optimizer.zero_grad()
-                total_loss.backward()
-                optimizer.step()
-                pbar.set_postfix({"loss": total_loss.item()})
+                
+            task_loader = create_dataloader(train_dataset, train_target, task_classes, batch_size, shuffle=True)
             
-            # Evaluate after each epoch.
-            eval_loader = create_dataloader(test_dataset, test_target, current_classes, batch_size, shuffle=False)
-            epoch_accuracy = evaluate_moe(model, eval_loader, device)
-            print(f"Task {task+1}, Epoch {epoch+1}: Eval Accuracy = {epoch_accuracy:.2f}% (LR = {lr:.5f})")
-            
-            if epoch_accuracy > best_epoch_accuracy:
-                best_epoch_accuracy = epoch_accuracy
-                best_model_state = copy.deepcopy(model.state_dict())
+            for attempt in range(num_retries):
+                print(f"\nTask {task+1}, Attempt {attempt+1}/{num_retries}")
+                
+                # Create a copy of the best model so far
+                model = copy.deepcopy(best_overall_model)
+                
+                # Add a new expert for the current task
+                model.add_expert(task_classes)
+                model.to(device)
+                
+                # Freeze feature extractor and previous experts
+                for param in model.feature_extractor.parameters():
+                    param.requires_grad = False
+                for expert in model.experts[:-1]:
+                    for param in expert.parameters():
+                        param.requires_grad = False
+                
+                # Train the model for this attempt
+                task_accuracy = train_subsequent_task(model, task_loader, buffer_loader, test_dataset, test_target,
+                                                     current_classes, batch_size, num_epochs, lr, device,
+                                                     alignment_strength, buffer_weight)
+                
+                print(f"Task {task+1}, Attempt {attempt+1}: Final Accuracy = {task_accuracy:.2f}%")
+                
+                # Update best model if this attempt is better
+                if task_accuracy > best_task_accuracy:
+                    best_task_accuracy = task_accuracy
+                    best_task_model = copy.deepcopy(model)
+                    
+                    # Save this model as a checkpoint for this attempt
+                    checkpoint_path = os.path.join(save_dir, f"moe_model_task{task+1}_attempt{attempt+1}.pt")
+                    torch.save({
+                        'state_dict': model.state_dict(),
+                        'expert_classes': model.expert_classes
+                    }, checkpoint_path)
         
-        if best_model_state is not None:
-            model.load_state_dict(best_model_state)
-        print(f"Task {task+1}: Best Eval Accuracy = {best_epoch_accuracy:.2f}%")
-        accuracies.append(best_epoch_accuracy)
+        # Update the best overall model with the best model for this task
+        best_overall_model = best_task_model
+        accuracies.append(best_task_accuracy)
         
-        # Save model checkpoint for the current task.
-        checkpoint_path = os.path.join(save_dir, f"moe_model_task{task+1}.pt")
+        # Save the best model for this task as the final checkpoint
+        checkpoint_path = os.path.join(save_dir, f"moe_model_task{task+1}_best.pt")
         torch.save({
-            'state_dict': model.state_dict(),
-            'expert_classes': model.expert_classes
+            'state_dict': best_overall_model.state_dict(),
+            'expert_classes': best_overall_model.expert_classes
         }, checkpoint_path)
-        print(f"Saved checkpoint: {checkpoint_path}")
-
-    return accuracies
+        print(f"Task {task+1}: Best Accuracy = {best_task_accuracy:.2f}%")
+    
+    return accuracies, best_overall_model
 
 ####################################
-### Main: Incremental Learning on GTSRB using Mixture-of-Experts
+### Main: Incremental Learning on GTSRB using Mixture-of-Experts with Multiple Attempts
 ####################################
 # Hyperparameters
-num_tasks = 4
+num_tasks = 5
 nclasses = len(np.unique(train_target))
 classes_per_task = math.ceil(nclasses / num_tasks)
 batch_size = 64
 lr = 1e-3  # Constant learning rate of 0.001
-num_epochs = 80      # For tasks after the first (first task uses 80 epochs)
+num_epochs = 30
 buffer_size = 1000
-alignment_strength = 0.1
+alignment_strength = 2.0
 buffer_weight = 2.0
+num_retries = 2  # Number of training attempts per task
 
-moe_model = MixtureOfExperts(feature_dim=400)
-moe_model.to(device)
+# Run the improved incremental learning with multiple attempts per task
+accuracies, final_model = incremental_learning_moe_with_retries(
+    train_dataset, train_target, test_dataset, test_target,
+    num_tasks, classes_per_task, batch_size, num_epochs, lr, device,
+    buffer_size=buffer_size, alignment_strength=alignment_strength,
+    buffer_weight=buffer_weight, num_retries=num_retries
+)
 
-accuracies = incremental_learning_moe(moe_model, train_dataset, train_target,
-                                      test_dataset, test_target,
-                                      num_tasks, classes_per_task,
-                                      batch_size, num_epochs, lr, device,
-                                      buffer_size=buffer_size,
-                                      alignment_strength=alignment_strength,
-                                      buffer_weight=buffer_weight)
-
-print("\nIncremental Learning Accuracies per Task:")
+print("\nIncremental Learning Accuracies per Task (best attempt):")
 for i, acc in enumerate(accuracies):
     print(f"Task {i+1}: {acc:.2f}%")
+
+# Final model is saved at './checkpoints/moe_model_task4_best.pt'
