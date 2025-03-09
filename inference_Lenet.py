@@ -103,7 +103,7 @@ def evaluate_moe(model, dataloader, device):
 ### Inference Script
 ####################################
 # Set paths and parameters.
-checkpoint_path = "./checkpoints/moe_model_task4.pt"  # Update as needed.
+checkpoint_path = "./checkpoints/moe_model_task5_best.pt"  # Update as needed.
 batch_size = 64
 
 # Load test dataset.
