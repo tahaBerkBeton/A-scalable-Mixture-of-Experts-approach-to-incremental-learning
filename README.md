@@ -117,10 +117,10 @@ Our training procedure follows these steps:
 2. **Subsequent Tasks**:
    - Freeze the feature extractor and all previous experts
    - Add a new expert for the current task classes
-   - Train for 30 epochs per attempt with a constant learning rate of 0.001
-   - Incorporate a memory buffer containing examples from previous tasks
+   - Train for 30 epochs per attempt, with a constant learning rate of 0.001, the router and new expert
+   - Incorporate a memory buffer containing examples from previous tasks (in order to mitigate catastrophic forgetting for the router
    - Apply a multi-component loss function that balances new learning with preserving past knowledge
-   - Select the best performing model based on validation accuracy on all seen classes
+   - Select the best performing model(router+new expert) based on validation accuracy on all seen classes
 
 The loss function comprises three key components:
 - Classification loss on new task data (weight: 1.0)
