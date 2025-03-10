@@ -288,17 +288,9 @@ The selected best model is then saved as a checkpoint with the naming convention
 
 Several directions for future research and improvement are being considered:
 
-1. **Advanced Routing Mechanisms**: Exploring more sophisticated routing algorithms beyond the current linear layer approach could further improve the system's ability to direct samples to the appropriate expert.
+1. **Advanced Routing Mechanisms**: Exploring more sophisticated routing algorithms beyond the current linear layer and hard routing approach could further improve the system's ability to direct samples to the appropriate expert.
 
-2. **Knowledge Distillation**: Incorporating distillation techniques could help transfer knowledge between experts and potentially reduce the need for a large memory buffer.
 
-3. **Scaling to Larger Datasets**: Applying the approach to larger, more complex datasets such as ImageNet would test its scalability to real-world applications with thousands of classes.
-
-4. **Dynamic Expert Allocation**: Investigating methods to dynamically allocate classes to experts based on similarity rather than sequential task assignment could improve overall performance.
-
-5. **Adaptive Hyperparameters**: Developing approaches to automatically adjust hyperparameters like buffer size and loss weights based on task characteristics could optimize performance across different domains.
-
-6. **Ensemble Methods**: Combining multiple trained models or experts to form ensemble predictions could further improve classification accuracy and robustness.
 
 ## 📚 References
 
