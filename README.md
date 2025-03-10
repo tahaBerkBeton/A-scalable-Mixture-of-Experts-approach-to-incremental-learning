@@ -286,7 +286,7 @@ The selected best model is then saved as a checkpoint with the naming convention
 
 Several directions for future research and improvement are being considered:
 
-1. **Advanced Routing Mechanisms**: Exploring more sophisticated routing algorithms beyond the current linear layer and hard routing approach could further improve the system's ability to direct samples to the appropriate expert.
+1. **Advanced Routing Mechanisms**: Exploring more sophisticated routing algorithms beyond the current linear layer and hard routing approach could further improve the system's ability to direct samples to the appropriate expert. We also expect that for a very large number of subsequent tasks the router(which doesn't increase in complexity beyond the output layer (num_experts)) might start to elicit catastrophic forgetting. We shall then explore a scalable structure for the router (ex: with a hidden layer) that increases in complexity (let's say every 6-10 tasks) to accomodate for the increase in the routing challenge overime. 
 
 
 
