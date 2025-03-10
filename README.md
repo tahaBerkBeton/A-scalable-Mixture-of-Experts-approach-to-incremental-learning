@@ -291,10 +291,11 @@ Several directions for future research and improvement are being considered:
 
 
 ## 📚 References
-
+- "Adaptive mixtures of local experts" by Jacobs, R. A., Jordan, M. I., Nowlan, S. J., \& Hinton, G. E. (1991)
 - German Traffic Sign Recognition Benchmark (GTSRB): https://benchmark.ini.rub.de/gtsrb_dataset.html
 - "Overcoming catastrophic forgetting in neural networks" by Kirkpatrick et al.
 - "A Survey on Mixture of Experts" by Weilin Cai, Juyong Jiang, Fan Wang, Jing Tang, Sunghun Kim, Jiayi Huang
+
 
 ## 🙏 Acknowledgements
 
