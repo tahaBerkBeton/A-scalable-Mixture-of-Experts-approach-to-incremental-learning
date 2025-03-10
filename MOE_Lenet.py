@@ -25,7 +25,7 @@ save_dir = "./checkpoints"
 os.makedirs(save_dir, exist_ok=True)
 
 ####################################
-### Data loaders & Transforms (Accepting Colored Images)
+### Data loaders & Transforms 
 ####################################
 transform_train = transforms.Compose([
     transforms.Resize((32,32)),
@@ -207,7 +207,7 @@ def evaluate_moe(model, dataloader, device):
     return 100 * correct / total
 
 ####################################
-### New Functions for Multiple Training Attempts
+###  Functions for Multiple Training Attempts
 ####################################
 def train_initial_task(model, task_loader, test_dataset, test_target, current_classes, 
                       batch_size, num_epochs, lr, device, alignment_strength=2.0):
@@ -524,4 +524,4 @@ print("\nIncremental Learning Accuracies per Task (best attempt):")
 for i, acc in enumerate(accuracies):
     print(f"Task {i+1}: {acc:.2f}%")
 
-# Final model is saved at './checkpoints/moe_model_task4_best.pt'
+# Final model is saved at './checkpoints/moe_model_task5_best.pt'
