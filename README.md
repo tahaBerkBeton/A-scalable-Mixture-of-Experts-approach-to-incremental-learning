@@ -233,8 +233,6 @@ python inference_Lenet.py
 # Run detailed error analysis
 python inference_advanced.py
 
-# Specify a different checkpoint
-python inference_Lenet.py --checkpoint ./checkpoints/moe_model_task3_best.pt
 ```
 
 ## 📝 Implementation Details
