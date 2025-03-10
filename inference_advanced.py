@@ -12,7 +12,7 @@ import os
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 ####################################
-### Model Definitions (Same as in Training)
+### Model Definitions 
 ####################################
 class LeNetFeatureExtractor(nn.Module):
     def __init__(self, in_channels=3):
@@ -99,7 +99,7 @@ def get_ground_truth_expert_info(labels, expert_classes, device):
     return torch.tensor(gt_expert, device=device), torch.tensor(local_label, device=device)
 
 ####################################
-### New: Inference Evaluation with Advanced Statistics
+###  Inference Evaluation with Advanced Statistics
 ####################################
 def evaluate_moe_with_stats(model, dataloader, device):
     """
