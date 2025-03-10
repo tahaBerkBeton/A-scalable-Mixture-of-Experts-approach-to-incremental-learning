@@ -378,7 +378,7 @@ def train_subsequent_task(model, task_loader, buffer_loader, test_dataset, test_
 
 def incremental_learning_moe_with_retries(train_dataset, train_target, test_dataset, test_target,
                                 num_tasks, classes_per_task, batch_size, num_epochs, lr, device,
-                                buffer_size=500, alignment_strength=2.0, buffer_weight=2.0,
+                                buffer_size=1000, alignment_strength=2.0, buffer_weight=2.0,
                                 num_retries=2):
     """
     Performs incremental learning using multiple training attempts for each task,
@@ -507,7 +507,7 @@ classes_per_task = math.ceil(nclasses / num_tasks)
 batch_size = 64
 lr = 1e-3  # Constant learning rate of 0.001
 num_epochs = 30
-buffer_size = 500
+buffer_size = 1000
 alignment_strength = 2.0
 buffer_weight = 2.0
 num_retries = 2  # Number of training attempts per task
