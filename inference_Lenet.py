@@ -15,7 +15,7 @@ import os
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 ####################################
-### Model Definitions (Same as in Training)
+### Model Definitions 
 ####################################
 class LeNetFeatureExtractor(nn.Module):
     def __init__(self, in_channels=3):
