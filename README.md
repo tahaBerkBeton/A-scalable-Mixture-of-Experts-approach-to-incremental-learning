@@ -294,7 +294,7 @@ Several directions for future research and improvement are being considered:
 
 - German Traffic Sign Recognition Benchmark (GTSRB): https://benchmark.ini.rub.de/gtsrb_dataset.html
 - "Overcoming catastrophic forgetting in neural networks" by Kirkpatrick et al.
-- "Mixture of Experts: A Literature Survey" by Masoudnia and Ebrahimpour
+- "A Survey on Mixture of Experts" by Weilin Cai, Juyong Jiang, Fan Wang, Jing Tang, Sunghun Kim, Jiayi Huang
 
 ## 🙏 Acknowledgements
 
