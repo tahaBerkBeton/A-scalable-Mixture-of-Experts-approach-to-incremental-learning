@@ -130,7 +130,7 @@ The loss function comprises three key components:
 This weighted combination ensures that the model maintains knowledge of previous tasks while learning new ones, and that the router correctly directs samples to the appropriate expert.
 
 ### Memory Buffer Strategy
-Our system maintains a memory buffer of 200 to 1000 samples from previous tasks(can be chosen in the hyperparameters). The buffer is constructed to have balanced representation across past classes, with samples randomly selected from the test split to simulate real-world scenarios where past training data might not be available. During training of new tasks, these buffer samples are replayed to prevent forgetting of previously learned knowledge.
+Our system maintains a memory buffer of 200 to 1000 samples from previous tasks(we obtain very similar results across this range, the exact desired size can be chosen in the hyperparameters). The buffer is constructed to have balanced representation across past classes, with samples randomly selected from the test split to simulate real-world scenarios where past training data might not be available. During training of new tasks, these buffer samples are replayed to prevent forgetting of previously learned knowledge.
 
 ## 📊 Results
 
@@ -286,7 +286,7 @@ The selected best model is then saved as a checkpoint with the naming convention
 
 Several directions for future research and improvement are being considered:
 
-1. **Advanced Routing Mechanisms**: Exploring more sophisticated routing algorithms beyond the current linear layer and hard routing approach could further improve the system's ability to direct samples to the appropriate expert. We also expect that for a very large number of subsequent tasks the router(which doesn't increase in complexity beyond the output layer (num_experts)) might start to elicit catastrophic forgetting. We shall then explore a scalable structure for the router (ex: with a hidden layer) that increases in complexity (let's say every 6-10 tasks) to accomodate for the increase in the routing challenge overime. 
+1. **Advanced Routing Mechanisms**: Exploring more sophisticated routing algorithms beyond the current linear layer and hard routing approach could further improve the system's ability to direct samples to the appropriate expert. We also expect that for a very large number of subsequent tasks the router(which doesn't increase in complexity beyond the output layer (num_experts)) might start to elicit catastrophic forgetting. We shall then explore a scalable structure for the router (ex: with a hidden layer) that increases in complexity (let's say every 6-10 tasks) to accomodate for the increase in the routing challenge overtime. 
 
 
 
