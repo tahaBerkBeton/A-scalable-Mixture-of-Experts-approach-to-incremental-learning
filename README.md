@@ -130,7 +130,7 @@ The loss function comprises three key components:
 This weighted combination ensures that the model maintains knowledge of previous tasks while learning new ones, and that the router correctly directs samples to the appropriate expert.
 
 ### Memory Buffer Strategy
-Our system maintains a memory buffer of 1000 samples from previous tasks. The buffer is constructed to have balanced representation across past classes, with samples randomly selected from the test split to simulate real-world scenarios where past training data might not be available. During training of new tasks, these buffer samples are replayed to prevent forgetting of previously learned knowledge.
+Our system maintains a memory buffer of 500 samples from previous tasks. The buffer is constructed to have balanced representation across past classes, with samples randomly selected from the test split to simulate real-world scenarios where past training data might not be available. During training of new tasks, these buffer samples are replayed to prevent forgetting of previously learned knowledge.
 
 ## 📊 Results
 
@@ -243,7 +243,7 @@ Our implementation uses the following hyperparameters, which were determined thr
 
 - Learning rate: 0.001 (constant)
 - Batch size: 64
-- Memory buffer size: 1000 samples
+- Memory buffer size: 500 samples
 - Alignment strength: 2.0
 - Buffer weight: 2.0
 - Number of training attempts per task: 2
